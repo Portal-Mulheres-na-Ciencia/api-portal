@@ -8,6 +8,9 @@ A API responde sempre em JSON. Datas usam o formato `AAAA-MM-DD`.
 | `GET` | `/cientistas/{id}` | Público | Dados completos de uma cientista (página de Perfil) |
 | `GET` | `/areas` | Público | Áreas de atuação com o total de cientistas (filtros e página inicial) |
 | `POST` | `/sugestoes` | Público | Grava a sugestão de uma nova cientista enviada por um visitante |
+| `POST` | `/auth/login` | Público | Entra na área da equipe |
+| `GET` | `/auth/eu` | Equipe | Mostra quem está logado |
+| `POST` | `/auth/logout` | Equipe | Sai da área da equipe |
 
 ## Formato dos erros
 
@@ -27,6 +30,9 @@ Todos os erros usam o mesmo formato:
 |---|---|---|
 | Campo inválido no formulário | `400` | `Confira os campos destacados.` (detalhes em `campos`) |
 | Corpo ausente ou JSON inválido | `400` | `Não foi possível ler os dados enviados.` |
+| E-mail ou senha errados no login | `401` | `E-mail ou senha incorretos.` |
+| Rota da equipe sem login | `401` | `Entre com seu e-mail e senha para continuar.` |
+| Ação que altera dados sem o token CSRF | `403` | `Não foi possível confirmar esta ação. Recarregue a página e tente de novo.` |
 | Item que não existe | `404` | Ex.: `Cientista não encontrada.`, `Sugestão não encontrada.` |
 
 ---
@@ -150,6 +156,107 @@ Corpo (JSON):
 ```
 
 - **Dados inválidos:** `400 Bad Request` com a mensagem de cada campo (veja [Formato dos erros](#formato-dos-erros)).
+
+Esta rota não exige login nem o token CSRF.
+
+---
+
+# Área da equipe
+
+As rotas abaixo (menos `POST /auth/login`) exigem login. Sem sessão, a resposta é `401`.
+As que alteram dados (`POST`, `PUT`, `PATCH` e `DELETE`) também exigem o token CSRF (veja [Segurança](#segurança)).
+
+## POST /auth/login
+
+Confere o e-mail e a senha e abre a sessão. O e-mail é comparado sem diferença entre maiúsculas e minúsculas.
+Não exige o token CSRF.
+
+```json
+{ "email": "equipe@portal.local", "senha": "ciencia2026" }
+```
+
+- **Sucesso:** `200 OK` com os dados da pessoa (nunca a senha). A resposta traz o cookie da sessão.
+
+```json
+{ "id": 1, "nome": "Equipe do Portal", "email": "equipe@portal.local" }
+```
+
+- **E-mail ou senha errados:** `401` com `E-mail ou senha incorretos.` A mensagem não diz qual dos dois está errado.
+- **Campo vazio:** `400` com `Informe o seu e-mail.` ou `Informe a sua senha.` em `campos`.
+
+## GET /auth/eu
+
+Mostra quem está logado. O site usa esta rota para saber se a sessão continua aberta.
+
+- **Com sessão:** `200 OK` com `{ "id", "nome", "email" }`
+- **Sem sessão:** `401` com `Entre com seu e-mail e senha para continuar.`
+
+## POST /auth/logout
+
+Encerra a sessão. Não tem corpo.
+
+- **Sucesso:** `204 No Content`
+- **Sem o token CSRF:** `403`
+
+---
+
+# Segurança
+
+## Quem acessa o quê
+
+| Rotas | Acesso |
+|---|---|
+| `GET /cientistas`, `GET /cientistas/{id}`, `GET /areas` | Público |
+| `POST /sugestoes`, `POST /auth/login` | Público, sem token CSRF |
+| Todas as outras (`/auth/eu`, `/auth/logout`, `/admin/...`) | Só com login |
+
+## Sessão
+
+- O login abre uma sessão no servidor. O navegador guarda o identificador num cookie **HttpOnly** (o JavaScript não lê) e
+  `SameSite=Lax`.
+- No login, o identificador da sessão é trocado, para ninguém reaproveitar uma sessão antiga.
+- `POST /auth/logout` encerra a sessão.
+
+## Proteção CSRF
+
+As ações que alteram dados na área da equipe precisam de um token, para impedir que outro site faça essas ações usando a
+sessão de quem está logado.
+
+- A API envia o token no cookie `XSRF-TOKEN`.
+- O site devolve o mesmo valor no cabeçalho `X-XSRF-TOKEN`. O Angular (`HttpClient`) faz isso sozinho.
+- `POST /sugestoes` e `POST /auth/login` não exigem o token, porque não dependem de sessão.
+- Sem o token, a resposta é `403` com `Não foi possível confirmar esta ação. Recarregue a página e tente de novo.`
+  Isso vale mesmo para quem não está logado.
+
+## Senhas
+
+- As senhas são guardadas com **BCrypt** (coluna `usuario.senha_hash`). Nenhuma resposta da API devolve a senha.
+- A primeira conta da equipe é criada quando a API sobe e a tabela `usuario` está vazia, a partir das variáveis
+  `ADMIN_EMAIL` e `ADMIN_SENHA` (`ADMIN_NOME` é opcional; o padrão é `Equipe do Portal`). Sem essas variáveis, nenhuma
+  conta é criada. Nenhuma senha fica no código.
+- No ambiente Docker, os valores de teste são `equipe@portal.local` / `ciencia2026`. Eles valem **só para o ambiente de teste
+  local** (veja `docs/AMBIENTE.md`).
+
+## Respostas 401 e 403
+
+As duas usam o mesmo formato de erro das outras rotas:
+
+```json
+{ "status": 401, "mensagem": "Entre com seu e-mail e senha para continuar.", "campos": {} }
+```
+
+```json
+{ "status": 403, "mensagem": "Não foi possível confirmar esta ação. Recarregue a página e tente de novo.", "campos": {} }
+```
+
+## Acesso pelo front-end (CORS)
+
+No Docker e no `npm start`, o site chama a API pelo próprio endereço (`/api/...`), e o servidor do site repassa as chamadas
+para a API. Assim o navegador fala com um endereço só, e o cookie da sessão funciona normalmente.
+
+Para chamadas diretas de outro endereço, a API aceita os métodos `GET`, `POST`, `PUT`, `PATCH` e `DELETE` vindos de
+`http://localhost:4200`. Para liberar outros endereços, defina a variável `CORS_ORIGENS` (separados por vírgula).
+
 ---
 
 # Testar na mão
@@ -161,4 +268,11 @@ Com o banco criado (veja `docs/BANCO.md`) e a API rodando (`./mvnw spring-boot:r
 curl http://localhost:8080/cientistas
 curl http://localhost:8080/cientistas/1
 
+# Área da equipe: entra e guarda o cookie da sessão
+curl -c cookies.txt -H "Content-Type: application/json" \
+  -d '{"email":"equipe@portal.local","senha":"ciencia2026"}' \
+  http://localhost:8080/auth/login
+curl -b cookies.txt http://localhost:8080/auth/eu
 ```
+
+Use o e-mail e a senha definidos em `ADMIN_EMAIL` e `ADMIN_SENHA`. As consultas (`GET`) não precisam do token CSRF.

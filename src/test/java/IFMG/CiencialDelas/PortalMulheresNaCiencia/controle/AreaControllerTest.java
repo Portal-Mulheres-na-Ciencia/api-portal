@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import IFMG.CiencialDelas.PortalMulheresNaCiencia.config.CorsConfig;
+import IFMG.CiencialDelas.PortalMulheresNaCiencia.config.SegurancaConfig;
 import IFMG.CiencialDelas.PortalMulheresNaCiencia.dto.AreaDTO;
 import IFMG.CiencialDelas.PortalMulheresNaCiencia.servico.AreaService;
 import java.util.List;
@@ -17,7 +18,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AreaController.class)
-@Import(CorsConfig.class)
+@Import({CorsConfig.class, SegurancaConfig.class})
 class AreaControllerTest {
 
     @Autowired

@@ -5,6 +5,7 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -36,5 +37,12 @@ public class TratadorDeErros {
     public ResponseEntity<ErroDTO> corpoInvalido(HttpMessageNotReadableException e) {
         return ResponseEntity.badRequest()
                 .body(new ErroDTO(HttpStatus.BAD_REQUEST.value(), "Não foi possível ler os dados enviados.", Map.of()));
+    }
+
+    /** E-mail ou senha errados no login. A mensagem não diz qual dos dois, por segurança. */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErroDTO> loginRecusado(AuthenticationException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ErroDTO(HttpStatus.UNAUTHORIZED.value(), "E-mail ou senha incorretos.", Map.of()));
     }
 }

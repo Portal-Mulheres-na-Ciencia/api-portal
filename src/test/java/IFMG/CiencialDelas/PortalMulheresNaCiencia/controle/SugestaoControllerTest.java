@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import IFMG.CiencialDelas.PortalMulheresNaCiencia.config.CorsConfig;
+import IFMG.CiencialDelas.PortalMulheresNaCiencia.config.SegurancaConfig;
 import IFMG.CiencialDelas.PortalMulheresNaCiencia.dto.SugestaoCriadaDTO;
 import IFMG.CiencialDelas.PortalMulheresNaCiencia.servico.SugestaoService;
 import java.time.LocalDate;
@@ -23,7 +24,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(SugestaoController.class)
-@Import(CorsConfig.class)
+@Import({CorsConfig.class, SegurancaConfig.class})
 class SugestaoControllerTest {
 
     private static final String VALIDA = """
