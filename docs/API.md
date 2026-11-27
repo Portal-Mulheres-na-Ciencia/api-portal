@@ -11,6 +11,11 @@ A API responde sempre em JSON. Datas usam o formato `AAAA-MM-DD`.
 | `POST` | `/auth/login` | Público | Entra na área da equipe |
 | `GET` | `/auth/eu` | Equipe | Mostra quem está logado |
 | `POST` | `/auth/logout` | Equipe | Sai da área da equipe |
+| `POST` | `/admin/cientistas` | Equipe | Cadastra uma cientista |
+| `PUT` | `/admin/cientistas/{id}` | Equipe | Edita uma cientista |
+| `DELETE` | `/admin/cientistas/{id}` | Equipe | Exclui uma cientista |
+| `GET` | `/admin/premios` | Equipe | Lista os prêmios cadastrados |
+| `POST` | `/admin/premios` | Equipe | Cadastra um prêmio |
 | `GET` | `/admin/sugestoes` | Equipe | Lista as sugestões, com filtro opcional por status |
 | `PATCH` | `/admin/sugestoes/{id}` | Equipe | Aprova ou recusa uma sugestão |
 
@@ -200,6 +205,146 @@ Encerra a sessão. Não tem corpo.
 
 - **Sucesso:** `204 No Content`
 - **Sem o token CSRF:** `403`
+
+## POST /admin/cientistas
+
+Cadastra uma cientista com áreas, contribuições e prêmios.
+
+```json
+{
+  "nome": "Sonia Guimarães",
+  "biografia": "Física brasileira, professora do Instituto Tecnológico de Aeronáutica.",
+  "instituicao": "Instituto Tecnológico de Aeronáutica",
+  "dataNascimento": null,
+  "dataFalecimento": null,
+  "nacionalidade": "Brasileira",
+  "idsAreas": [1],
+  "contribuicoes": [
+    { "titulo": "Pesquisa em materiais semicondutores", "descricao": null, "ano": null, "linkReferencia": null }
+  ],
+  "premios": [],
+  "idSugestao": 12
+}
+```
+
+| Campo | Regra | Mensagem de erro |
+|---|---|---|
+| `nome` | Obrigatório, até 150 caracteres | `Informe o nome da cientista.` / `Use no máximo 150 caracteres.` |
+| `biografia` | Obrigatória, até 5000 caracteres | `Escreva a biografia.` / `Use no máximo 5000 caracteres.` |
+| `instituicao` | Opcional, até 150 caracteres | `Use no máximo 150 caracteres.` |
+| `dataNascimento` | Opcional, não pode estar no futuro | `A data não pode estar no futuro.` |
+| `dataFalecimento` | Opcional, não pode estar no futuro nem antes do nascimento | `A data não pode estar no futuro.` / `A data de falecimento deve ser depois do nascimento.` |
+| `nacionalidade` | Opcional, até 45 caracteres | `Use no máximo 45 caracteres.` |
+| `idsAreas` | Obrigatório, pelo menos uma área que exista | `Escolha pelo menos uma área.` / `Escolha áreas que existem na lista.` |
+| `contribuicoes` | Opcional (lista vazia se não vier). Regras de cada item na tabela abaixo. | |
+| `premios` | Opcional (lista vazia se não vier). Regras de cada item na tabela abaixo. | |
+| `idSugestao` | Opcional. Id da sugestão que deu origem ao cadastro. | `Esta sugestão já virou um cadastro.` |
+
+Cada item de `contribuicoes`:
+
+| Campo | Regra | Mensagem de erro |
+|---|---|---|
+| `id` | Vazio para contribuição nova. Na edição, id de uma contribuição que já é desta cientista. | `Esta contribuição não pertence a esta cientista.` |
+| `titulo` | Obrigatório, até 200 caracteres | `Informe o título da contribuição.` / `Use no máximo 200 caracteres.` |
+| `descricao` | Opcional, até 2000 caracteres | `Use no máximo 2000 caracteres.` |
+| `ano` | Opcional, entre 1000 e 2100 | `Informe um ano válido.` |
+| `linkReferencia` | Opcional, até 500 caracteres, começando com `http://` ou `https://` | `Use no máximo 500 caracteres.` / `Informe um link que comece com http:// ou https://.` |
+
+Cada item de `premios`:
+
+| Campo | Regra | Mensagem de erro |
+|---|---|---|
+| `idPremio` | Obrigatório, prêmio que exista em `GET /admin/premios`, sem repetir na lista | `Escolha o prêmio.` / `Escolha um prêmio da lista.` / `Este prêmio já está na lista.` |
+| `ano` | Obrigatório, entre 1000 e 2100 | `Informe o ano.` / `Informe um ano válido.` |
+
+Nos erros de itens de lista, a chave em `campos` mostra a posição do item, por exemplo `contribuicoes[0].titulo` ou `premios[1].idPremio`.
+
+Comportamento:
+
+- Os espaços sobrando são retirados. Campo opcional em branco fica sem valor (`null`) no banco.
+- Do prêmio só se informa o ano. O banco guarda a data como 1º de janeiro desse ano e o perfil mostra apenas o ano.
+- Com `idSugestao`, a cientista fica ligada à sugestão, e a sugestão passa para `APROVADA`, com o registro de quem fez o cadastro.
+  Se a sugestão não existir, a resposta é `404` com `Sugestão não encontrada.`
+
+Respostas:
+
+- **Sucesso:** `201 Created`, com o cabeçalho `Location: /cientistas/{id}` e o corpo no mesmo formato de `GET /cientistas/{id}`.
+- **Dados inválidos:** `400` com a mensagem de cada campo.
+
+## PUT /admin/cientistas/{id}
+
+Edita uma cientista. O corpo é igual ao do cadastro e traz **todos** os dados: o que não vier na lista é retirado.
+Para montar o formulário de edição, o site usa os dados de `GET /cientistas/{id}`
+(`areasAtuacao[].id` vira `idsAreas`, e o `id` de cada prêmio vira `idPremio`).
+
+```json
+{
+  "nome": "Marie Curie",
+  "biografia": "Física e química nascida em Varsóvia e radicada na França…",
+  "instituicao": "Universidade de Paris",
+  "dataNascimento": "1867-11-07",
+  "dataFalecimento": "1934-07-04",
+  "nacionalidade": "Polonesa e francesa",
+  "idsAreas": [1, 2],
+  "contribuicoes": [
+    { "id": 1, "titulo": "Descoberta do polônio e do rádio", "descricao": "…", "ano": 1898, "linkReferencia": "https://…" },
+    { "id": 2, "titulo": "Isolamento do rádio metálico", "descricao": "…", "ano": 1910, "linkReferencia": "https://…" }
+  ],
+  "premios": [
+    { "idPremio": 1, "ano": 1903 },
+    { "idPremio": 2, "ano": 1911 }
+  ]
+}
+```
+
+Comportamento:
+
+- **Áreas:** passam a ser exatamente as de `idsAreas`.
+- **Contribuições:** item com `id` é atualizado; item sem `id` é criado. A contribuição que saiu da lista deixa de ser desta
+  cientista e é apagada do banco se não tiver outra cientista ligada a ela.
+- **Prêmios:** os que continuam na lista são mantidos (com o ano atualizado), os novos são incluídos e os que saíram são retirados.
+- `idSugestao` não é usado na edição.
+
+Respostas:
+
+- **Sucesso:** `200 OK` com o corpo no mesmo formato de `GET /cientistas/{id}`.
+- **Dados inválidos:** `400` com a mensagem de cada campo.
+- **Id inexistente:** `404` com `Cientista não encontrada.`
+
+## DELETE /admin/cientistas/{id}
+
+Exclui a cientista, as ligações com as áreas, os prêmios recebidos e as contribuições que eram só dela.
+Contribuições ligadas também a outra cientista continuam no banco. Os prêmios cadastrados e a sugestão de origem continuam gravados.
+
+- **Sucesso:** `204 No Content`
+- **Id inexistente:** `404` com `Cientista não encontrada.`
+
+## GET /admin/premios
+
+Lista os prêmios em ordem alfabética, para a lista de escolha do formulário de cientista.
+
+```json
+[
+  { "id": 5, "nome": "Medalha Presidencial da Liberdade", "concedente": "Presidência dos Estados Unidos" },
+  { "id": 1, "nome": "Prêmio Nobel de Física", "concedente": "Academia Real das Ciências da Suécia" }
+]
+```
+
+## POST /admin/premios
+
+Cadastra um prêmio novo.
+
+```json
+{ "nome": "Prêmio Nobel de Medicina", "concedente": "Instituto Karolinska" }
+```
+
+| Campo | Regra | Mensagem de erro |
+|---|---|---|
+| `nome` | Obrigatório, até 150 caracteres, sem repetir um nome já cadastrado (maiúsculas e minúsculas contam como iguais) | `Informe o nome do prêmio.` / `Use no máximo 150 caracteres.` / `Já existe um prêmio com este nome.` |
+| `concedente` | Opcional, até 45 caracteres (gravado em `premio.instituicao`) | `Use no máximo 45 caracteres.` |
+
+- **Sucesso:** `201 Created` com `{ "id", "nome", "concedente" }`
+- **Dados inválidos:** `400` com a mensagem de cada campo.
 
 ## GET /admin/sugestoes
 

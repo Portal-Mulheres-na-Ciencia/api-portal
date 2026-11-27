@@ -44,6 +44,11 @@ public class CientistaService {
     public CientistaDetalheDTO buscarDetalhe(Integer id) {
         Cientista cientista = cientistaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Cientista não encontrada."));
+        return paraDetalhe(cientista);
+    }
+
+    /** Converte a cientista para o formato do perfil. Usado também depois de cadastrar ou editar. */
+    public CientistaDetalheDTO paraDetalhe(Cientista cientista) {
         List<ContribuicaoDTO> contribuicoes = cientista.getContribuicoes().stream()
                 .sorted(Comparator.comparing(Contribuicao::getAno, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(c -> new ContribuicaoDTO(c.getId(), c.getAno(), c.getTitulo(), c.getDescricao(),
