@@ -7,6 +7,7 @@ A API responde sempre em JSON. Datas usam o formato `AAAA-MM-DD`.
 | `GET` | `/cientistas` | Público | Lista resumida de todas as cientistas (cards do Catálogo) |
 | `GET` | `/cientistas/{id}` | Público | Dados completos de uma cientista (página de Perfil) |
 | `GET` | `/areas` | Público | Áreas de atuação com o total de cientistas (filtros e página inicial) |
+| `POST` | `/sugestoes` | Público | Grava a sugestão de uma nova cientista enviada por um visitante |
 
 ## Formato dos erros
 
@@ -24,6 +25,8 @@ Todos os erros usam o mesmo formato:
 
 | Situação | Status | `mensagem` |
 |---|---|---|
+| Campo inválido no formulário | `400` | `Confira os campos destacados.` (detalhes em `campos`) |
+| Corpo ausente ou JSON inválido | `400` | `Não foi possível ler os dados enviados.` |
 | Item que não existe | `404` | Ex.: `Cientista não encontrada.`, `Sugestão não encontrada.` |
 
 ---
@@ -109,6 +112,44 @@ Retorna as áreas em ordem alfabética, com quantas cientistas atuam em cada uma
 ]
 ```
 
+## POST /sugestoes
+
+Grava no banco (tabela `sugestao_cientista`) a sugestão de uma nova cientista, com status `PENDENTE` e a data do dia.
+Os espaços sobrando são retirados e o e-mail é gravado em letras minúsculas.
+
+Corpo (JSON):
+
+```json
+{
+  "nomeCientista": "Sonia Guimarães",
+  "justificativa": "Primeira mulher negra doutora em física no Brasil.",
+  "nomeSugestor": "Ana",
+  "emailSugestor": "ana@exemplo.com",
+  "consentimento": true
+}
+```
+
+| Campo | Regra | Mensagem de erro |
+|---|---|---|
+| `nomeCientista` | Obrigatório, até 150 caracteres | `Informe o nome da cientista.` / `O nome da cientista deve ter no máximo 150 caracteres.` |
+| `justificativa` | Obrigatória, de 20 a 2000 caracteres | `Conte por que ela deveria estar no portal.` / `A justificativa deve ter entre 20 e 2000 caracteres.` |
+| `nomeSugestor` | Obrigatório, até 100 caracteres | `Informe o seu nome.` / `O seu nome deve ter no máximo 100 caracteres.` |
+| `emailSugestor` | Obrigatório, e-mail válido, até 150 caracteres | `Informe o seu e-mail.` / `Informe um e-mail válido.` / `O e-mail deve ter no máximo 150 caracteres.` |
+| `consentimento` | Precisa ser `true` (LGPD: o e-mail só é usado para responder à sugestão) | `É preciso concordar com o uso dos seus dados para responder à sugestão.` |
+
+- **Sucesso:** `201 Created`. O e-mail não é devolvido. `dataSugestao` traz só a data (`AAAA-MM-DD`):
+
+```json
+{
+  "id": 12,
+  "nomeCientista": "Sonia Guimarães",
+  "status": "PENDENTE",
+  "dataSugestao": "2026-11-10",
+  "mensagem": "Sugestão recebida! A equipe vai avaliar e responder pelo e-mail informado."
+}
+```
+
+- **Dados inválidos:** `400 Bad Request` com a mensagem de cada campo (veja [Formato dos erros](#formato-dos-erros)).
 ---
 
 # Testar na mão

@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.util.HashSet;
@@ -63,6 +64,11 @@ public class Cientista {
     /** Prêmios recebidos (tabela cientista_tem_premio). Saem do banco junto com a cientista. */
     @OneToMany(mappedBy = "cientista", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<PremioRecebido> premios = new HashSet<>();
+
+    /** Sugestão que deu origem a esta cientista, quando houver (coluna id_sugestao_cientista). */
+    @OneToOne
+    @JoinColumn(name = "id_sugestao_cientista", unique = true)
+    private SugestaoCientista sugestao;
 
     public Cientista() {
     }
@@ -169,5 +175,13 @@ public class Cientista {
 
     public Set<PremioRecebido> getPremios() {
         return premios;
+    }
+
+    public SugestaoCientista getSugestao() {
+        return sugestao;
+    }
+
+    public void setSugestao(SugestaoCientista sugestao) {
+        this.sugestao = sugestao;
     }
 }
