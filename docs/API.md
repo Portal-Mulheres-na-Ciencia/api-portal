@@ -11,6 +11,8 @@ A API responde sempre em JSON. Datas usam o formato `AAAA-MM-DD`.
 | `POST` | `/auth/login` | Público | Entra na área da equipe |
 | `GET` | `/auth/eu` | Equipe | Mostra quem está logado |
 | `POST` | `/auth/logout` | Equipe | Sai da área da equipe |
+| `GET` | `/admin/sugestoes` | Equipe | Lista as sugestões, com filtro opcional por status |
+| `PATCH` | `/admin/sugestoes/{id}` | Equipe | Aprova ou recusa uma sugestão |
 
 ## Formato dos erros
 
@@ -30,6 +32,7 @@ Todos os erros usam o mesmo formato:
 |---|---|---|
 | Campo inválido no formulário | `400` | `Confira os campos destacados.` (detalhes em `campos`) |
 | Corpo ausente ou JSON inválido | `400` | `Não foi possível ler os dados enviados.` |
+| Valor inválido no endereço (ex.: `?status=QUALQUER`) | `400` | `Valor inválido em status.` |
 | E-mail ou senha errados no login | `401` | `E-mail ou senha incorretos.` |
 | Rota da equipe sem login | `401` | `Entre com seu e-mail e senha para continuar.` |
 | Ação que altera dados sem o token CSRF | `403` | `Não foi possível confirmar esta ação. Recarregue a página e tente de novo.` |
@@ -198,6 +201,61 @@ Encerra a sessão. Não tem corpo.
 - **Sucesso:** `204 No Content`
 - **Sem o token CSRF:** `403`
 
+## GET /admin/sugestoes
+
+Lista as sugestões, das mais recentes para as mais antigas. Sem filtro, traz todas.
+
+| Parâmetro | Valores |
+|---|---|
+| `status` (opcional) | `PENDENTE`, `APROVADA` ou `RECUSADA`. Exemplo: `/admin/sugestoes?status=PENDENTE` |
+
+```json
+[
+  {
+    "id": 12,
+    "nomeCientista": "Sonia Guimarães",
+    "justificativa": "Primeira mulher negra doutora em física no Brasil.",
+    "nomeSugestor": "Ana",
+    "emailSugestor": "ana@exemplo.com",
+    "dataSugestao": "2026-11-10",
+    "status": "PENDENTE",
+    "revisor": null,
+    "idCientista": null
+  }
+]
+```
+
+| Campo | O que é |
+|---|---|
+| `emailSugestor` | Aparece só aqui, na área da equipe, e serve apenas para responder à sugestão |
+| `revisor` | Nome da pessoa da equipe que avaliou (`null` se ainda não foi avaliada) |
+| `idCientista` | Id da cientista cadastrada a partir desta sugestão (`null` se não houver) |
+
+- **Sucesso:** `200 OK` (lista vazia `[]` se não houver sugestões)
+- **Status inválido:** `400` com `Valor inválido em status.`
+
+## PATCH /admin/sugestoes/{id}
+
+Aprova ou recusa uma sugestão e registra quem decidiu.
+
+```json
+{ "status": "RECUSADA" }
+```
+
+| Campo | Regra | Mensagem de erro |
+|---|---|---|
+| `status` | Obrigatório: `APROVADA` ou `RECUSADA` | `Escolha aprovar ou recusar.` |
+
+- Aprovar não cadastra a cientista. O cadastro é feito em `POST /admin/cientistas`, de preferência com `idSugestao`.
+- Uma sugestão que já virou cadastro não pode ser recusada: `400` com `Esta sugestão já virou um cadastro e não pode ser recusada.`
+- `PENDENTE` não é aceito: `400` com `Escolha aprovar ou recusar.`
+- Valor fora da lista (ex.: `"TALVEZ"`): `400` com `Não foi possível ler os dados enviados.`
+
+Respostas:
+
+- **Sucesso:** `200 OK` com a sugestão atualizada, no mesmo formato de `GET /admin/sugestoes`.
+- **Id inexistente:** `404` com `Sugestão não encontrada.`
+
 ---
 
 # Segurança
@@ -268,11 +326,11 @@ Com o banco criado (veja `docs/BANCO.md`) e a API rodando (`./mvnw spring-boot:r
 curl http://localhost:8080/cientistas
 curl http://localhost:8080/cientistas/1
 
-# Área da equipe: entra e guarda o cookie da sessão
+# Área da equipe: entra, guarda o cookie da sessão e consulta as sugestões pendentes
 curl -c cookies.txt -H "Content-Type: application/json" \
   -d '{"email":"equipe@portal.local","senha":"ciencia2026"}' \
   http://localhost:8080/auth/login
-curl -b cookies.txt http://localhost:8080/auth/eu
+curl -b cookies.txt "http://localhost:8080/admin/sugestoes?status=PENDENTE"
 ```
 
 Use o e-mail e a senha definidos em `ADMIN_EMAIL` e `ADMIN_SENHA`. As consultas (`GET`) não precisam do token CSRF.
